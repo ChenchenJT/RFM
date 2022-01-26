@@ -96,11 +96,11 @@ def test(args):
     vocab2id, id2vocab, id2freq = load_vocab(data_path + 'holl_input_output.' + args.version + '.vocab',
                                              t=args.min_vocab_freq)
 
-    # if os.path.exists(data_path + 'holl-dev.' + args.version + '.pkl'):
-    #     dev_dataset = torch.load(data_path + 'holl-dev.' + args.version + '.pkl')
-    # else:
-    #     dev_dataset = RAMDataset([data_path + 'holl-dev.' + args.version + '.json'], vocab2id, args.min_window_size,
-    #                                args.num_windows, args.knowledge_len, args.context_len)
+    if os.path.exists(data_path + 'holl-dev.' + args.version + '.pkl'):
+        dev_dataset = torch.load(data_path + 'holl-dev.' + args.version + '.pkl')
+    else:
+        dev_dataset = RAMDataset([data_path + 'holl-dev.' + args.version + '.json'], vocab2id, args.min_window_size,
+                                   args.num_windows, args.knowledge_len, args.context_len)
 
     if os.path.exists(data_path + 'holl-test.' + args.version + '.pkl'):
         test_dataset = torch.load(data_path + 'holl-test.' + args.version + '.pkl')
