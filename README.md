@@ -16,7 +16,7 @@ python Prepare_holl.py
 ## Run training, validation, and testing
 To train or test your model, run:
 ```
-python -m torch.distributed.launch --nproc_per_node=num_GPU Run_GLKS.py --mode='train/test'
+python -m torch.distributed.launch --nproc_per_node=num_GPU Run_RFM.py --mode='train/test'
 ```
 
 ## Addition
