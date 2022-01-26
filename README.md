@@ -4,7 +4,6 @@ The code for the paper: "Feedback is important: response-aware feedback mechanis
 ## Requirements 
 * python 3.7
 * pytorch 1.7.0
-* nltk
 
 ## Datasets 
 - Download the [raw data version of Holl-E](https://github.com/nikitacs16/Holl-E), and put the raw data files (train_data.json, dev_data.json and test_data.json）in the directory `/dataset/raw_data`.
