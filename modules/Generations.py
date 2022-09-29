@@ -1,11 +1,6 @@
 # coding: utf-8
-import torch
 import torch.nn.functional as F
-import math
-import random
 from data.Utils import *
-from torch.distributions.categorical import *
-from Constants import *
 from modules.Utils import *
 
 
@@ -96,9 +91,10 @@ def greedy(model, data, vocab2id, max_len=20, encode_outputs=None, init_decoder_
     greedy_end = new_tensor([0] * batch_size).long() == 1
     for t in range(max_len):
         if t != 0:
-            all_decode_inputs = all_inputs[:, 1:t+1]
+            all_decode_inputs = all_inputs[:, 1:t + 1]
             # feedback，输入为encoder输出（segment）和当前生成词前面的真值
-            feedback_outputs = model.decoder_to_encoder(data, encode_outputs, all_decode_inputs)    # all_decode_inputs用于GRU
+            feedback_outputs = model.decoder_to_encoder(data, encode_outputs,
+                                                        all_decode_inputs)  # all_decode_inputs用于GRU
 
         decode_outputs = model.decode(
             data, decoder_input, encode_outputs, all_decode_outputs[-1], feedback_outputs

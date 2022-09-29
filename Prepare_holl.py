@@ -5,9 +5,9 @@ from evaluate.Rouge import *
 
 nltk.download('punkt')
 
-input_file = r'dataset/raw_data/test_data.json'
+input_file = r'dataset/holl_e/raw_data/test_data.json'
 version = 'oracle_reduced'
-output_file = r'dataset/oracle/holl-test.oracle.json'
+output_file = r'dataset/holl_e/oracle/holl-test.oracle.json'
 root = './'
 
 with codecs.open(root + input_file, encoding='utf-8') as f:

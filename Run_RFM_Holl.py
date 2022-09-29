@@ -1,4 +1,4 @@
-from RFMDataset import *
+from RFMHollDataset import *
 from RFM import *
 from torch import optim
 from trainers.DefaultTrainer import *
@@ -8,8 +8,7 @@ import os
 
 
 def train(args):
-    base_output_path = 'holl.' + args.version + '/'
-    data_path = 'dataset/' + args.version + '/'
+    data_path = 'dataset/' + args.dataset + '/' + args.version + '/'
 
     if torch.cuda.is_available():
         torch.distributed.init_process_group(backend='NCCL', init_method='env://')
@@ -25,7 +24,7 @@ def train(args):
 
     batch_size = 32
 
-    output_path = 'model/' + args.version + '/' + base_output_path
+    output_path = 'model/' + args.dataset + '/' + args.version + '/'
 
     vocab2id, id2vocab, id2freq = load_vocab(data_path + 'holl_input_output.' + args.version + '.vocab',
                                              t=args.min_vocab_freq)
@@ -34,20 +33,16 @@ def train(args):
         prepare_embeddings(data_path + 'glove.6B.300d.txt')
     emb_matrix = load_embeddings(data_path + 'glove.6B.300d.txt', id2vocab, args.embedding_size)
 
-    if os.path.exists(data_path + 'holl-train.' + args.version + '.pkl'):
-        train_dataset = torch.load(data_path + 'holl-train.' + args.version + '.pkl')
-    else:
-        train_dataset = RAMDataset([data_path + 'holl-train.' + args.version + '.json'], vocab2id,
-                                    args.min_window_size,
-                                    args.num_windows, args.knowledge_len, args.context_len)
+    train_dataset = RAMHollDataset([data_path + 'holl-train.' + args.version + '.json'], vocab2id,
+                                   args.min_window_size,
+                                   args.num_windows, args.knowledge_len, args.context_len)
 
     model = RFM(args.min_window_size, args.num_windows, args.embedding_size, args.knowledge_len, args.context_len,
-                 args.hidden_size, vocab2id, id2vocab, max_dec_len=70,
-                 beam_width=1, emb_matrix=emb_matrix)
+                args.hidden_size, vocab2id, id2vocab, max_dec_len=70,
+                beam_width=1, emb_matrix=emb_matrix)
     init_params(model, escape='embedding')
 
     model_optimizer = optim.Adam(model.parameters())
-
     trainer = DefaultTrainer(model, args.local_rank)
 
     Total_params = 0
@@ -66,19 +61,15 @@ def train(args):
     print(f'Trainable params: {Trainable_params}')
     print(f'Non-trainable params: {NonTrainable_params}')
 
-    # for i in range(10):
-    #     trainer.train_epoch('ds_train', train_dataset, collate_fn, batch_size, i, model_optimizer)
-
-    for i in range(20):
+    for i in range(30):
         if i == 5:
             train_embedding(model)
-        trainer.train_epoch('fb_mle_mcc_train', train_dataset, collate_fn, batch_size, i, model_optimizer)
+        trainer.train_epoch('fb_mle_mcc_ds_train', train_dataset, collate_fn, batch_size, i, model_optimizer)
         trainer.serialize(i, output_path=output_path)
 
 
 def test(args):
-    base_output_path = 'holl.' + args.version + '/'
-    data_path = 'dataset/' + args.version + '/'
+    data_path = 'dataset/' + args.dataset + '/' + args.version + '/'
 
     cudnn.enabled = True
     cudnn.benchmark = True
@@ -91,31 +82,32 @@ def test(args):
 
     batch_size = 32
 
-    output_path = 'model/' + args.version + '/' + base_output_path
+    output_path = 'model/' + args.dataset + '/' + args.version + '/'
 
     vocab2id, id2vocab, id2freq = load_vocab(data_path + 'holl_input_output.' + args.version + '.vocab',
                                              t=args.min_vocab_freq)
 
-    if os.path.exists(data_path + 'holl-dev.' + args.version + '.pkl'):
-        dev_dataset = torch.load(data_path + 'holl-dev.' + args.version + '.pkl')
-    else:
-        dev_dataset = RAMDataset([data_path + 'holl-dev.' + args.version + '.json'], vocab2id, args.min_window_size,
-                                   args.num_windows, args.knowledge_len, args.context_len)
+    # if os.path.exists(data_path + 'holl-dev.' + args.version + '.pkl'):
+    #     dev_dataset = torch.load(data_path + 'holl-dev.' + args.version + '.pkl')
+    # else:
+    #     dev_dataset = RAMDataset([data_path + 'holl-dev.' + args.version + '.json'], vocab2id, args.min_window_size,
+    #                                args.num_windows, args.knowledge_len, args.context_len)
 
     if os.path.exists(data_path + 'holl-test.' + args.version + '.pkl'):
         test_dataset = torch.load(data_path + 'holl-test.' + args.version + '.pkl')
     else:
-        test_dataset = RAMDataset([data_path + 'holl-test.' + args.version + '.json'], vocab2id, args.min_window_size,
-                                   args.num_windows, args.knowledge_len, args.context_len)
+        test_dataset = RAMHollDataset([data_path + 'holl-test.' + args.version + '.json'], vocab2id,
+                                      args.min_window_size,
+                                      args.num_windows, args.knowledge_len, args.context_len)
 
-    for i in range(20):
+    for i in range(30):
         print('epoch', i)
         file = output_path + 'model/' + str(i) + '.pkl'
 
         if os.path.exists(file):
             model = RFM(args.min_window_size, args.num_windows, args.embedding_size, args.knowledge_len,
-                         args.context_len, args.hidden_size,
-                         vocab2id, id2vocab, max_dec_len=70, beam_width=1)
+                        args.context_len, args.hidden_size,
+                        vocab2id, id2vocab, max_dec_len=70, beam_width=1)
             model.load_state_dict(torch.load(file))
             trainer = DefaultTrainer(model, None)
             # trainer.test('test', dev_dataset, collate_fn, batch_size, i, output_path=output_path)
@@ -128,6 +120,7 @@ if __name__ == '__main__':
     parser.add_argument("--local_rank", type=int, default=0)
     parser.add_argument("--mode", type=str)
     parser.add_argument("--test", type=str, default='SR')
+    parser.add_argument("--dataset", type=str, default='holl_e')
     parser.add_argument("--version", type=str, default='oracle')  # background version
     parser.add_argument("--embedding_size", type=int, default=300)  # embedding size
     parser.add_argument("--hidden_size", type=int, default=256)  # hidden size

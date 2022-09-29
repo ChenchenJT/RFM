@@ -1,7 +1,8 @@
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, random_split
 from modules.Generations import *
 from evaluate.Eval_Rouge import *
 from evaluate.Eval_Bleu import *
+from evaluate.Eval_F1 import *
 from torch.utils.data.distributed import DistributedSampler
 from Utils import *
 import sys
@@ -47,6 +48,7 @@ class DefaultTrainer(object):
 
     def train_batch(self, epoch, data, method, optimizer):
         optimizer.zero_grad()
+
         loss = self.model(data, method=method)
 
         if isinstance(loss, tuple) or isinstance(loss, list):
@@ -135,6 +137,7 @@ class DefaultTrainer(object):
                 if test_type == 'SR':
                     for id in data['id']:
                         refs = dataset.output(id.item())
+                        # print('refs: ', refs)
                         refs = [' '.join(ref).lower() for ref in refs]
                         references.append(refs)
 
@@ -150,6 +153,9 @@ class DefaultTrainer(object):
 
             file = codecs.open(os.path.join(output_path, str(epoch) + '.txt'), "w", "utf-8")
             for i in range(len(systems)):
+                # print('srcs: ', srcs[i])
+                # print('system: ', systems[i])
+                # print('references: ', references[i])
                 file.write(srcs[i] + os.linesep + systems[i] + os.linesep + os.linesep.join(references[i]) + os.linesep + os.linesep)
             file.close()
         return systems, references
@@ -159,7 +165,10 @@ class DefaultTrainer(object):
             systems, references = self.predict(method, dataset, collate_fn, batch_size, epoch, output_path, test_type)
 
         rouges = eval_rouge(systems, references)
+        f1 = eval_f1(systems, references)
         # bleus =eval_bleu(systems, references)
+
         print({**rouges})
+        print({**f1})
         sys.stdout.flush()
-        return rouges  # , bleus
+        return rouges, f1  # , bleus

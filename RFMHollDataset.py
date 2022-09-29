@@ -1,6 +1,4 @@
-import codecs
 from torch.utils.data import Dataset
-from Constants import *
 from data.Utils import *
 import json
 from torch.nn.utils.rnn import pad_sequence
@@ -25,9 +23,9 @@ def get_selection_label(b, r, min_window_size=5, n_windows=4):
     return p_s
 
 
-class RAMDataset(Dataset):
+class RAMHollDataset(Dataset):
     def __init__(self, files, vocab2id, min_window_size=5, num_windows=4, knowledge_len=300, context_len=65, n=1E10):
-        super(RAMDataset, self).__init__()
+        super(RAMHollDataset, self).__init__()
 
         self.min_window_size = min_window_size
         self.num_windows = num_windows
@@ -141,6 +139,7 @@ class RAMDataset(Dataset):
                     torch.tensor(vocab_overlap, requires_grad=False))  # 如果背景知识词在词表存在为0，否则为1
 
                 if 'bg_ref_start' in sample:
+                    print(sample['bg_ref_start'])
                     self.ref_start_arrays.append(torch.tensor([sample['bg_ref_start']], requires_grad=False))
                     self.ref_end_arrays.append(torch.tensor([sample['bg_ref_end'] - 1], requires_grad=False))
                 else:

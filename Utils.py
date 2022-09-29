@@ -1,12 +1,10 @@
-import torch
-import numpy as np
 import random
 import time
-import codecs
+import nltk
 from Constants import *
 from torch.distributions.categorical import *
-import torch.nn.functional as F
 from modules.Utils import *
+from transformers import BertTokenizer
 
 
 def get_ms():
@@ -71,29 +69,30 @@ def decode_to_end(model, data, vocab2id, max_target_length=None, schedule_rate=1
     if encode_outputs is None:
         encode_outputs = model.encode(data)
     if init_decoder_states is None:
-        init_decoder_states = model.init_decoder_states(data, encode_outputs)   # [batch_size, 1, hidden_size]
+        init_decoder_states = model.init_decoder_states(data, encode_outputs)  # [batch_size, 1, hidden_size]
         # print('init_decoder_states: ', init_decoder_states.size())
     # feedback初始化
     if init_feedback_states is None:
         feedback_outputs = model.init_feedback_states(data, encode_outputs, init_decoder_states)
 
-    decoder_input = new_tensor([vocab2id[BOS_WORD]] * batch_size, requires_grad=False)      # 当前的前一个词
+    decoder_input = new_tensor([vocab2id[BOS_WORD]] * batch_size, requires_grad=False)  # 当前的前一个词
 
     prob = torch.ones((batch_size,)) * schedule_rate
     if torch.cuda.is_available():
         prob = prob.cuda()
 
-    all_gen_outputs = list()        # 存储pk, pv mix后的p
-    all_decode_outputs = [dict({'state': init_decoder_states})]     # 存储每个解码过程的pk, pv, state
-    all_feedback_states = list()    # 保存所有的feedback state
+    all_gen_outputs = list()  # 存储pk, pv mix后的p
+    all_decode_outputs = [dict({'state': init_decoder_states})]  # 存储每个解码过程的pk, pv, state
+    all_feedback_states = list()  # 保存所有的feedback state
 
     for t in range(max_target_length):
 
         if t != 0:
-            all_decode_inputs = tgt[:, :t]      # 左闭右开，取到的是t之前所有的词
+            all_decode_inputs = tgt[:, :t]  # 左闭右开，取到的是t之前所有的词
             # 待完成：model.decoder_to_encoder()、完成feedback.forward()、修改model.decode()、测试、控制feedback维度
             # feedback，输入为encoder输出（segment）和当前生成词前面的真值
-            feedback_outputs = model.decoder_to_encoder(data, encode_outputs, all_decode_inputs)    # all_decode_inputs用于GRU
+            feedback_outputs = model.decoder_to_encoder(data, encode_outputs,
+                                                        all_decode_inputs)  # all_decode_inputs用于GRU
         all_feedback_states.append(feedback_outputs)
         # decoder_outputs, decoder_states, ...
         # 生成每个解码过程的pk, pv, state
@@ -114,7 +113,7 @@ def decode_to_end(model, data, vocab2id, max_target_length=None, schedule_rate=1
         # print('all_decode_outputs: ', all_decode_outputs)
 
         if schedule_rate >= 1:
-            decoder_input = tgt[:, t]       # decoder前一个词使用的是真实回复的前一个词
+            decoder_input = tgt[:, t]  # decoder前一个词使用的是真实回复的前一个词
         elif schedule_rate <= 0:
             probs, ids = model.to_word(data, output, 1)
             decoder_input = model.generation_to_decoder_input(data, ids[:, 0])
@@ -258,3 +257,30 @@ def universal_sentence_embedding(sentences, mask, sqrt=True):
         divisor = divisor.sqrt()
     sentence_sums /= divisor
     return sentence_sums
+
+
+def bert_tokenizer():
+    t = BertTokenizer.from_pretrained(
+        "bert-base-uncased", do_lower_case=True)  # do_lower_case Whether to lower case the input.
+    return t.tokenize, t.vocab, t.ids_to_tokens
+
+
+def bert_detokenizer():
+    def detokenizer(tokens):
+        return ' '.join(tokens).replace(' ##', '').strip()
+
+    return detokenizer
+
+
+def nltk_tokenizer():
+    def tokenizer(sent):
+        return nltk.word_tokenize(sent.lower())
+
+    return tokenizer
+
+
+def nltk_detokenizer():
+    def detokenizer(tokens):
+        return ' '.join(tokens)
+
+    return detokenizer

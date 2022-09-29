@@ -1,7 +1,6 @@
 from EncDecModel import *
 from modules.BilinearAttention import *
 from torch.distributions.categorical import Categorical
-from torch.nn.parameter import Parameter
 from modules.Highway import *
 from data.Utils import *
 
@@ -28,7 +27,7 @@ class GenEncoder(nn.Module):
         c_outputs = []
         c_states = []
 
-        c_mask = c.ne(0).detach()     # [batch_size, word_num]
+        c_mask = c.ne(0).detach()  # [batch_size, word_num]
         c_lengths = c_mask.sum(dim=1).detach().cpu()  # [batch_size]
 
         c_emb = F.dropout(self.c_embedding[0](c), training=self.training)
@@ -43,7 +42,8 @@ class GenEncoder(nn.Module):
             c_outputs.append(c_enc_output.unsqueeze(1))
             c_states.append(c_state.view(c_state.size(0), -1).unsqueeze(1))
 
-        return torch.cat(c_outputs, dim=1), torch.cat(c_states, dim=1)  # [batch_size, 1, word_num, hidden_size] [batch_size, 1, hidden_size]
+        return torch.cat(c_outputs, dim=1), torch.cat(c_states,
+                                                      dim=1)  # [batch_size, 1, word_num, hidden_size] [batch_size, 1, hidden_size]
 
 
 class KnowledgeSelector(nn.Module):
@@ -89,12 +89,12 @@ class KnowledgeSelector(nn.Module):
         return torch.cat(bs, dim=1), torch.cat(ss, dim=1)
 
     def forward(self, b_enc_output, c_enc_output, c_state, b_mask, c_mask):
-        b_score = self.match(b_enc_output, c_enc_output, c_state, b_mask, c_mask)      # [batch_size, knowledge_len]
+        b_score = self.match(b_enc_output, c_enc_output, c_state, b_mask, c_mask)  # [batch_size, knowledge_len]
         segments, s_score = self.segments(b_enc_output, b_score, c_state)
 
-        s_score = F.softmax(s_score, dim=-1)            # [batch_size, knowledge_len/4]
+        s_score = F.softmax(s_score, dim=-1)  # [batch_size, knowledge_len/4]
 
-        segments = torch.bmm(s_score.unsqueeze(1), segments)    # [batch_size, 1, hidden_size]
+        segments = torch.bmm(s_score.unsqueeze(1), segments)  # [batch_size, 1, hidden_size]
 
         return segments, s_score, b_score
         # [batch_size, 1, hidden_size], [batch_size, knowledge_len/window_size(4)], [batch_size, knowledge_len]
@@ -142,7 +142,8 @@ class VocabGenerator(nn.Module):
                                   mask=b_mask.unsqueeze(1))
         b_output = b_output.squeeze(1)
 
-        concat_output = torch.cat((word.squeeze(1), state.squeeze(1), segment_mix.squeeze(1), c_output, b_output), dim=-1)
+        concat_output = torch.cat((word.squeeze(1), state.squeeze(1), segment_mix.squeeze(1), c_output, b_output),
+                                  dim=-1)
 
         feature_output = self.readout(concat_output)
 
@@ -189,11 +190,11 @@ class Feedback(nn.Module):
         self.b_gru = nn.GRU(embedding_size, knowledge_len, num_layers=1, bidirectional=False, batch_first=True)
 
     def initialize(self, segment, state):
-        b_init = self.b_linear(torch.cat([state, segment], dim=-1))     # [batch_size, 1, knowledge_len]
+        b_init = self.b_linear(torch.cat([state, segment], dim=-1))  # [batch_size, 1, knowledge_len]
         return b_init
 
     def forward(self, word_emb, b_states):
-        b_state = self.b_gru(word_emb, b_states.transpose(0, 1))[1].transpose(0, 1)     # [batch_size, 1, knowledge_len]
+        b_state = self.b_gru(word_emb, b_states.transpose(0, 1))[1].transpose(0, 1)  # [batch_size, 1, knowledge_len]
         return b_state
 
 
@@ -228,7 +229,8 @@ class Criterion(object):
 
 
 class RFM(EncDecModel):
-    def __init__(self, min_window_size, num_windows, embedding_size, knowledge_len, context_len, hidden_size, vocab2id, id2vocab, max_dec_len,
+    def __init__(self, min_window_size, num_windows, embedding_size, knowledge_len, context_len, hidden_size, vocab2id,
+                 id2vocab, max_dec_len,
                  beam_width, emb_matrix=None, eps=1e-10):
         super(RFM, self).__init__(vocab2id=vocab2id, max_dec_len=max_dec_len, beam_width=beam_width, eps=eps)
         self.vocab_size = len(vocab2id)
@@ -261,17 +263,24 @@ class RFM(EncDecModel):
 
         self.feedback = Feedback(embedding_size, knowledge_len, context_len, hidden_size)
 
-    def encode(self, data):
-        b_enc_outputs, b_states = self.b_encoder(data['unstructured_knowledge'])    # [batch_size, 1, knowledge_len, hidden_size], [batch_size, 1, hidden_size]
-        c_enc_outputs, c_states = self.c_encoder(data['context'])       # [batch_size, 1, context_len, hidden_size], [batch_size, 1, hidden_size]
-        b_enc_output = b_enc_outputs[:, -1]         # [batch_size, knowledge_len, hidden_size]
-        b_state = b_states[:, -1].unsqueeze(1)      # [batch_size, 1, hidden_size]
-        c_enc_output = c_enc_outputs[:, -1]         # [batch_size, context_len, hidden_size]
-        c_state = c_states[:, -1].unsqueeze(1)      # [batch_size, 1, hidden_size]
+        self.segment_linear = nn.Linear(int(knowledge_len / min_window_size + knowledge_len), hidden_size)
 
-        segment, p_s, p_g = self.k_selector(b_enc_output, c_enc_output, c_state, data['unstructured_knowledge'].ne(0),
-                                            data['context'].ne(0))
+    def encode(self, data):
+        b_enc_outputs, b_states = self.b_encoder(
+            data['unstructured_knowledge'])  # [batch_size, 1, knowledge_len, hidden_size], [batch_size, 1, hidden_size]
+        c_enc_outputs, c_states = self.c_encoder(
+            data['context'])  # [batch_size, 1, context_len, hidden_size], [batch_size, 1, hidden_size]
+        b_enc_output = b_enc_outputs[:, -1]  # [batch_size, knowledge_len, hidden_size]
+        b_state = b_states[:, -1].unsqueeze(1)  # [batch_size, 1, hidden_size]
+        c_enc_output = c_enc_outputs[:, -1]  # [batch_size, context_len, hidden_size]
+        c_state = c_states[:, -1].unsqueeze(1)  # [batch_size, 1, hidden_size]
+
+        _, p_s, p_g = self.k_selector(b_enc_output, c_enc_output, c_state, data['unstructured_knowledge'].ne(0),
+                                      data['context'].ne(0))
         # [batch_size, 1, hidden_size], [batch_size, knowledge_len/window_size(4)], [batch_size, knowledge_len]
+
+        s_g = torch.cat((p_s.unsqueeze(1), p_g.unsqueeze(1)), dim=-1)
+        segment = self.segment_linear(s_g)
 
         return {'b_enc_output': b_enc_output, 'b_state': b_state, 'c_enc_output': c_enc_output, 'c_state': c_state,
                 'segment': segment, 'p_s': p_s, 'p_g': p_g}
@@ -286,7 +295,7 @@ class RFM(EncDecModel):
         word_embedding = F.dropout(self.embedding(previous_word), training=self.training).unsqueeze(1)
 
         states = previous_deocde_outputs['state']
-        states = self.state_tracker(word_embedding, states)     # [batch_size, 1, hidden_size]
+        states = self.state_tracker(word_embedding, states)  # [batch_size, 1, hidden_size]
 
         if 'p_k' in previous_deocde_outputs:
             p_k = previous_deocde_outputs['p_k']
@@ -295,28 +304,35 @@ class RFM(EncDecModel):
             p_k = None
             p_v = None
 
-        p_k = self.c_generator(p_k, word_embedding, states, feedback_outputs, encode_outputs['segment'], encode_outputs['b_enc_output'],
+        p_k = self.c_generator(p_k, word_embedding, states, feedback_outputs, encode_outputs['segment'],
+                               encode_outputs['b_enc_output'],
                                encode_outputs['c_enc_output'], data['unstructured_knowledge'].ne(0),
                                data['context'].ne(0))
-        p_v = self.v_generator(p_v, word_embedding, states, feedback_outputs, encode_outputs['segment'], encode_outputs['b_enc_output'],
+        p_v = self.v_generator(p_v, word_embedding, states, feedback_outputs, encode_outputs['segment'],
+                               encode_outputs['b_enc_output'],
                                encode_outputs['c_enc_output'], data['unstructured_knowledge'].ne(0),
                                data['context'].ne(0))
 
         return {'p_k': p_k, 'p_v': p_v, 'state': states}
 
     def generate(self, data, encode_outputs, decode_outputs, softmax=True):
-        p = self.mixture(decode_outputs['state'], decode_outputs['p_v'], decode_outputs['p_k'], data['dyn_map'])    # [batch_size, ]
+        p = self.mixture(decode_outputs['state'], decode_outputs['p_v'], decode_outputs['p_k'],
+                         data['dyn_map'])  # [batch_size, ]
         return {'p': p}
 
     def decoder_to_encoder(self, data, encode_outputs, gen_response):
         word_embedding = F.dropout(self.feedback_embedding(gen_response), training=self.training)
-        p_g = encode_outputs['p_g'].unsqueeze(1)                      # p_g [batch_size, 1, knowledge_len]
-        init_feedback_states = torch.zeros_like(p_g)                  # 第0个state为0，即h0=0    [batch_size, 1, knowledge_len]
-        feedback_outputs = self.feedback(word_embedding, init_feedback_states)      # 最后一位state [batch_size, 1, hidden_size]
-        response_matrix = torch.bmm(feedback_outputs.transpose(1, 2), p_g)      # response-aware weight matrix  [batch_size, knowledge_len, knowledge_len]
-        attention_matrix = F.softmax(torch.bmm(p_g.transpose(1, 2), p_g), dim=-1)       # attention weight matrix   [batch_size, knowledge_len, knowledge_len]
-        response_weight = torch.bmm(response_matrix, attention_matrix)          # response attention matrix  [batch_size, knowledge_len, knowledge_len]
-        response_attention = torch.bmm(response_weight, p_g.transpose(1, 2)).transpose(1, 2)            # [batch_size, 1, knowledge_len]
+        p_g = encode_outputs['p_g'].unsqueeze(1)  # p_g [batch_size, 1, knowledge_len]
+        init_feedback_states = torch.zeros_like(p_g)  # 第0个state为0，即h0=0    [batch_size, 1, knowledge_len]
+        feedback_outputs = self.feedback(word_embedding, init_feedback_states)  # 最后一位state [batch_size, 1, hidden_size]
+        response_matrix = torch.bmm(feedback_outputs.transpose(1, 2),
+                                    p_g)  # response-aware weight matrix  [batch_size, knowledge_len, knowledge_len]
+        attention_matrix = F.softmax(torch.bmm(p_g.transpose(1, 2), p_g),
+                                     dim=-1)  # attention weight matrix   [batch_size, knowledge_len, knowledge_len]
+        response_weight = torch.bmm(response_matrix,
+                                    attention_matrix)  # response attention matrix  [batch_size, knowledge_len, knowledge_len]
+        response_attention = torch.bmm(response_weight, p_g.transpose(1, 2)).transpose(1,
+                                                                                       2)  # [batch_size, 1, knowledge_len]
         return response_attention
 
     def generation_to_decoder_input(self, data, indices):
@@ -346,10 +362,14 @@ class RFM(EncDecModel):
                 return self.beam(data)
 
     def do_train(self, data, type='mle_train'):
-        encode_output, init_decoder_state, all_decode_output, all_gen_output, all_feedback_states = decode_to_end(self, data, self.vocab2id,
-                                                                                             tgt=data['response'])
+        encode_output, init_decoder_state, all_decode_output, all_gen_output, all_feedback_states = decode_to_end(self,
+                                                                                                                  data,
+                                                                                                                  self.vocab2id,
+                                                                                                                  tgt=
+                                                                                                                  data[
+                                                                                                                      'response'])
         loss = list()
-        if 'fb' in type:
+        if 'mle' in type:
             p = torch.cat([p['p'].unsqueeze(1) for p in all_gen_output], dim=1)
             p = p.view(-1, p.size(-1))
             r_loss = self.criterion(p, data['response'], data['dyn_response'], self.vocab2id[UNK_WORD],

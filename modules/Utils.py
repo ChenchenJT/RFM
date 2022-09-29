@@ -1,7 +1,5 @@
 import torch
 import numpy as np
-from Constants import *
-from torch.nn.utils.rnn import pack_padded_sequence, PackedSequence
 import pickle
 import bcolz
 import torch.nn as nn
