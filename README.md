@@ -1,6 +1,8 @@
 # RFM
 
-The code for the paper: "RFM: response-aware feedback mechanism for background based conversation."
+The code for the paper [RFM: response-aware feedback mechanism for background based conversation](https://link.springer.com/article/10.1007/s10489-022-04056-4).
+
+![RFM](https://github.com/ChenchenJT/RFM/blob/main/figure/RFM.png)
 
 ## Reference
 
