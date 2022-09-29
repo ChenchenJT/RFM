@@ -46,7 +46,6 @@ python -m torch.distributed.launch --nproc_per_node=num_GPU Run_RFM_Holl.py --mo
 
 # Wizard of Wikipedia dataset
 python -m torch.distributed.launch --nproc_per_node=num_GPU Run_RFM_WoW.py --mode='train/test'
-
 ```
 
 If you want to run multiple references(MR) test version in Holl-E dataset, please add `--test='MR'` in the run script.
