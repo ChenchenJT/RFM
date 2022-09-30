@@ -365,9 +365,7 @@ class RFM(EncDecModel):
         encode_output, init_decoder_state, all_decode_output, all_gen_output, all_feedback_states = decode_to_end(self,
                                                                                                                   data,
                                                                                                                   self.vocab2id,
-                                                                                                                  tgt=
-                                                                                                                  data[
-                                                                                                                      'response'])
+                                                                                                                  tgt=data['response'])
         loss = list()
         if 'mle' in type:
             p = torch.cat([p['p'].unsqueeze(1) for p in all_gen_output], dim=1)
